@@ -1,7 +1,6 @@
 import sys
 import types
 
-# Create a robust unpickling patch for scikit-learn version differences
 try:
     import sklearn.compose._column_transformer as _ct
     if not hasattr(_ct, '_RemainderColsList'):
@@ -11,13 +10,16 @@ try:
 except ImportError:
     pass
 
-# Force inject the stub globally into the Python systems environment
 if 'sklearn.compose._column_transformer' in sys.modules:
     mod = sys.modules['sklearn.compose._column_transformer']
     if not hasattr(mod, '_RemainderColsList'):
         class _RemainderColsList(list):
             pass
         setattr(mod, '_RemainderColsList', _RemainderColsList)
+
+from sklearn.impute import SimpleImputer
+if not hasattr(SimpleImputer, '_fill_dtype'):
+    SimpleImputer._fill_dtype = object
 
 import streamlit as st
 import pandas as pd
@@ -151,7 +153,23 @@ if payload:
         one_row = one_row.reindex(columns=feature_cols)
         
         try:
-            probability = float(pipeline.predict_proba(one_row)[0, 1])
+            # Force inject internal parameter fallback properties into the pipeline steps dynamically
+            for step_name, step_obj in pipeline.steps:
+                if hasattr(step_obj, 'transformers'):
+                    for trans in step_obj.transformers:
+                        transformer_instance = trans[1]
+                        if hasattr(transformer_instance, 'steps'):
+                            for sub_step in transformer_instance.steps:
+                                if sub_step[0] == 'imputer' and not hasattr(sub_step[1], '_fill_dtype'):
+                                    sub_step[1]._fill_dtype = object
+                                if hasattr(sub_step[1], 'transformers_'):
+                                    for sub_t in sub_step[1].transformers_:
+                                        if not hasattr(sub_t[1], '_fill_dtype'):
+                                            sub_t[1]._fill_dtype = object
+
+            # Run inference calculation matching shape indices
+            prob_array = pipeline.predict_proba(one_row)
+            probability = float(prob_array[0, 1])
             predicted_class = int(probability >= 0.50)
             risk_band_string = get_risk_band(probability)
             
@@ -168,7 +186,7 @@ if payload:
                     st.warning("⚠️ **Recommended Action:** Escalate activity record for formal security analyst investigation.")
                 else:
                     st.success("✅ **NORMAL ACTIVITY PROFILE**")
-                    st.info("ℹ️ **Recommended Action:** No immediate risk anomalies. Continue standard automated monitoring.")
+                    st.info("ℹ ... Continuing Standard Automated Monitoring.")
                     
         except Exception as eval_err:
             st.error(f"Inference processing failed. Ensure your feature data schema matches the model criteria. Error: {eval_err}")
