@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 import joblib
 import os
+import urllib.request
 
-# Set up page configurations
 st.set_page_config(
     page_title="Insider Threat Detection System",
     page_icon="🛡️",
@@ -16,25 +16,33 @@ st.markdown("---")
 st.markdown("### Interactive Threat Evaluation Prototype")
 st.write("Input raw user activity metrics below to run the Random Forest model classification pipeline.")
 
-# 1. Load the model from the local directory (ignored by git, placed manually)
 @st.cache_resource
 def load_model_pipeline():
-    model_path = "model/random_forest_insider_threat_model.joblib"
-    if os.path.exists(model_path):
-        try:
-            payload = joblib.load(model_path)
-            return payload
-        except Exception as e:
-            st.error(f"Error reading model file: {e}")
-            return None
-    else:
-        st.error(f"⚠️ **Model file not found at `{model_path}`!**")
-        st.info("💡 Pro-Tip: Create a folder named `model` inside your app repository and copy your saved model file into it.")
+    model_dir = "model"
+    model_path = os.path.join(model_dir, "random_forest_insider_threat_model.joblib")
+    
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+        
+    if not os.path.exists(model_path):
+        MODEL_URL = "https://github.com"
+        with st.spinner("Downloading model binary from secure GitHub release storage... Please wait..."):
+            try:
+                urllib.request.urlretrieve(MODEL_URL, model_path)
+                st.success("Model downloaded successfully!")
+            except Exception as download_err:
+                st.error(f"Failed to fetch model from release assets: {download_err}")
+                return None
+                
+    try:
+        payload = joblib.load(model_path)
+        return payload
+    except Exception as e:
+        st.error(f"Error reading model file: {e}")
         return None
 
 payload = load_model_pipeline()
 
-# 2. Replicate the EXACT feature engineering from your notebook
 def add_engineered_features(frame):
     out = frame.copy()
 
@@ -65,7 +73,6 @@ def add_engineered_features(frame):
 
     return out
 
-# 3. Probability band helper function from your notebook
 def get_risk_band(probability):
     if probability < 0.25:
         return "🟢 Low"
@@ -75,14 +82,12 @@ def get_risk_band(probability):
         return "🟠 High"
     return "🔴 Very High"
 
-# 4. Interface Input Fields
 if payload:
     pipeline = payload["model"]
     feature_cols = payload["model_feature_columns"]
     
     st.subheader("📝 Activity Log Input Parameters")
     
-    # Organize fields cleanly into columns
     col1, col2 = st.columns(2)
     
     with col1:
@@ -93,26 +98,20 @@ if payload:
         employee_seniority_years = st.number_input("Employee Seniority (Years)", min_value=0, value=3)
 
     with col2:
-        # Binary Risk Flags (Converts 'Yes'/'No' selection back into 1 or 0 for the model)
         late_exit_flag = st.selectbox("Late Exit Flag?", ["No", "Yes"])
         entry_during_weekend = st.selectbox("Weekend Access Entry?", ["No", "Yes"])
         is_abroad = st.selectbox("Remote Access from Abroad?", ["No", "Yes"])
         burned_from_other = st.selectbox("Burned Files From Other Profiles?", ["No", "Yes"])
         
-        # Categorical strings
         employee_department = st.selectbox(
             "Employee Department", 
             ["Engineering", "IT", "Sales", "Human Resources", "Finance", "Legal"]
         )
 
-    # Convert select box answers to numerical/boolean representations expected by Python
     flag_mapping = {"No": 0, "Yes": 1}
-
     st.markdown("---")
     
-    # 5. Prediction Execution
     if st.button("🚀 Evaluate Activity Record", type="primary"):
-        # Compile inputs into raw dictionary structure matching data frame baseline
         activity_record = {
             "total_printed_pages": total_printed_pages,
             "num_printed_pages_off_hours": num_printed_pages_off_hours,
@@ -126,20 +125,15 @@ if payload:
             "employee_department": employee_department
         }
         
-        # Structure dataframe and transform exactly like the notebook pipeline
         one_row = pd.DataFrame([activity_record])
         one_row = add_engineered_features(one_row)
-        
-        # Synchronize columns with original training frame schema (imputes missing, removes extras)
         one_row = one_row.reindex(columns=feature_cols)
         
-        # Generate target probabilities
         try:
             probability = float(pipeline.predict_proba(one_row)[0, 1])
             predicted_class = int(probability >= 0.50)
             risk_band_string = get_risk_band(probability)
             
-            # Show outputs
             st.subheader("📊 Model Inference Evaluation")
             
             res_col1, res_col2 = st.columns(2)
