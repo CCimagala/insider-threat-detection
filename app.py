@@ -19,13 +19,13 @@ st.write("Input raw user activity metrics below to run the Random Forest model c
 @st.cache_resource
 def load_model_pipeline():
     model_dir = "model"
-    model_path = os.path.join(model_dir, "random_forest_insider_threat_model.joblib")
+    model_path = os.path.join(model_dir, "random_forest_insider_threat_model_compressed.joblib")
     
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
         
     if not os.path.exists(model_path):
-        MODEL_URL = "https://github.com"
+        MODEL_URL = "https://github.com/CCimagala/insider-threat-detection/releases/download/v1.0.0/random_forest_insider_threat_model_compressed.joblib"
         with st.spinner("Downloading model binary from secure GitHub release storage... Please wait..."):
             try:
                 urllib.request.urlretrieve(MODEL_URL, model_path)
