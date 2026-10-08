@@ -1,0 +1,14 @@
+# Ignore python binaries and checkpoints
+__pycache__/
+*.pyc
+
+# Ignore large datasets and tracking outputs
+*.csv
+*.xlsx
+.ipynb_checkpoints/
+
+# Ignore large machine learning models
+*.joblib
+*.pkl
+*.h5
+model
