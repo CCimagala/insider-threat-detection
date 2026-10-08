@@ -1,3 +1,24 @@
+import sys
+import types
+
+# Create a robust unpickling patch for scikit-learn version differences
+try:
+    import sklearn.compose._column_transformer as _ct
+    if not hasattr(_ct, '_RemainderColsList'):
+        class _RemainderColsList(list):
+            pass
+        _ct._RemainderColsList = _RemainderColsList
+except ImportError:
+    pass
+
+# Force inject the stub globally into the Python systems environment
+if 'sklearn.compose._column_transformer' in sys.modules:
+    mod = sys.modules['sklearn.compose._column_transformer']
+    if not hasattr(mod, '_RemainderColsList'):
+        class _RemainderColsList(list):
+            pass
+        setattr(mod, '_RemainderColsList', _RemainderColsList)
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -25,7 +46,7 @@ def load_model_pipeline():
         os.makedirs(model_dir)
         
     if not os.path.exists(model_path):
-        MODEL_URL = "https://github.com/CCimagala/insider-threat-detection/releases/download/v1.0.0/random_forest_insider_threat_model_compressed.joblib"
+        MODEL_URL = "https://github.com"
         with st.spinner("Downloading model binary from secure GitHub release storage... Please wait..."):
             try:
                 urllib.request.urlretrieve(MODEL_URL, model_path)
