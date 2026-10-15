@@ -7,8 +7,10 @@ __pycache__/
 *.xlsx
 .ipynb_checkpoints/
 
-# Ignore large machine learning models
-*.joblib
+# ALLOW machine learning model for this specific application deployment
+!model/
+!model/random_forest_insider_threat_model_compressed.joblib
+
+# Keep other formats ignored safely
 *.pkl
 *.h5
-model
