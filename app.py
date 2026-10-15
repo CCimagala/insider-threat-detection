@@ -47,9 +47,6 @@ def load_model_pipeline():
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
         
-    if os.path.exists(model_path) and os.path.getsize(model_path) < 50000:
-        os.remove(model_path)
-        
     if not os.path.exists(model_path):
         MODEL_URL = "https://github.com"
         with st.spinner("Downloading model binary from secure GitHub release storage..."):
@@ -65,6 +62,15 @@ def load_model_pipeline():
         return payload
     except Exception as e:
         st.error(f"Error reading model file: {e}")
+        
+        try:
+            with open(model_path, "r", encoding="utf-8", errors="ignore") as f:
+                snippet = f.read(500)
+            st.warning("⚠️ **The downloaded file contains text instead of binary model data.** Inspection window:")
+            st.code(snippet, language="text")
+        except Exception as read_err:
+            st.error(f"Could not read file snippet: {read_err}")
+            
         st.error("Detailed System Traceback:")
         st.code(traceback.format_exc(), language="python")
         return None
@@ -172,7 +178,7 @@ if payload:
                                     sub_t._fill_dtype = object
 
             prob_array = pipeline.predict_proba(one_row)
-            probability = float(prob_array[0, 1])
+            probability = float(prob_array)
             predicted_class = int(probability >= 0.50)
             risk_band_string = get_risk_band(probability)
             
