@@ -1,12 +1,5 @@
 import sys
 import types
-import os
-import urllib.request
-import traceback
-import pandas as pd
-import numpy as np
-import joblib
-import streamlit as st
 
 try:
     import sklearn.compose._column_transformer as _ct
@@ -28,6 +21,13 @@ from sklearn.impute import SimpleImputer
 if not hasattr(SimpleImputer, '_fill_dtype'):
     SimpleImputer._fill_dtype = object
 
+import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
+import os
+import urllib.request
+
 st.set_page_config(
     page_title="Insider Threat Detection System",
     page_icon="🛡️",
@@ -47,26 +47,12 @@ def load_model_pipeline():
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
         
-    if os.path.exists(model_path) and os.path.getsize(model_path) < 50000:
-        os.remove(model_path)
-        
     if not os.path.exists(model_path):
         MODEL_URL = "https://github.com"
-        with st.spinner("Downloading model binary from secure GitHub release storage..."):
+        with st.spinner("Downloading model binary from secure GitHub release storage... Please wait..."):
             try:
                 urllib.request.urlretrieve(MODEL_URL, model_path)
-                
-                if os.path.exists(model_path) and os.path.getsize(model_path) < 50000:
-                    with open(model_path, "r", encoding="utf-8", errors="ignore") as f:
-                        content = f.read(200)
-                    if "<!DOCTYPE html>" in content or "<html" in content:
-                        os.remove(model_path)
-                        st.error("🛑 **Access Blocked by GitHub Authentication**")
-                        st.warning("Your GitHub repository is currently set to **Private**. Because it is private, GitHub is blocking the download script and sending a login page instead of the actual model file.")
-                        st.info("💡 **How to fix this instantly:**\n1. Go to your repository on **GitHub.com**.\n2. Click **Settings** (the gear icon at the top).\n3. Scroll all the way down to the **Danger Zone**.\n4. Click **Change visibility** ➡️ select **Make public**.\n\nOnce the repo is Public, click **Reboot App** in Streamlit and it will load perfectly!")
-                        return None
-                        
-                st.success("Model file downloaded successfully!")
+                st.success("Model downloaded successfully!")
             except Exception as download_err:
                 st.error(f"Failed to fetch model from release assets: {download_err}")
                 return None
@@ -76,17 +62,6 @@ def load_model_pipeline():
         return payload
     except Exception as e:
         st.error(f"Error reading model file: {e}")
-        
-        try:
-            with open(model_path, "r", encoding="utf-8", errors="ignore") as f:
-                snippet = f.read(500)
-            st.warning("⚠️ **The downloaded file contains text instead of binary model data.** Inspection window:")
-            st.code(snippet, language="text")
-        except Exception as read_err:
-            st.error(f"Could not read file snippet: {read_err}")
-            
-        st.error("Detailed System Traceback:")
-        st.code(traceback.format_exc(), language="python")
         return None
 
 payload = load_model_pipeline()
@@ -178,21 +153,23 @@ if payload:
         one_row = one_row.reindex(columns=feature_cols)
         
         try:
+            # Force inject internal parameter fallback properties into the pipeline steps dynamically
             for step_name, step_obj in pipeline.steps:
                 if hasattr(step_obj, 'transformers'):
                     for trans in step_obj.transformers:
-                        transformer_instance = trans
+                        transformer_instance = trans[1]
                         if hasattr(transformer_instance, 'steps'):
-                            for sub_step_name, sub_step_obj in transformer_instance.steps:
-                                if not hasattr(sub_step_obj, '_fill_dtype'):
-                                    sub_step_obj._fill_dtype = object
-                        if hasattr(transformer_instance, 'transformers_'):
-                            for sub_t in transformer_instance.transformers_:
-                                if len(sub_t) > 1 and not hasattr(sub_t, '_fill_dtype'):
-                                    sub_t._fill_dtype = object
+                            for sub_step in transformer_instance.steps:
+                                if sub_step[0] == 'imputer' and not hasattr(sub_step[1], '_fill_dtype'):
+                                    sub_step[1]._fill_dtype = object
+                                if hasattr(sub_step[1], 'transformers_'):
+                                    for sub_t in sub_step[1].transformers_:
+                                        if not hasattr(sub_t[1], '_fill_dtype'):
+                                            sub_t[1]._fill_dtype = object
 
+            # Run inference calculation matching shape indices
             prob_array = pipeline.predict_proba(one_row)
-            probability = float(prob_array)
+            probability = float(prob_array[0, 1])
             predicted_class = int(probability >= 0.50)
             risk_band_string = get_risk_band(probability)
             
@@ -209,7 +186,7 @@ if payload:
                     st.warning("⚠️ **Recommended Action:** Escalate activity record for formal security analyst investigation.")
                 else:
                     st.success("✅ **NORMAL ACTIVITY PROFILE**")
-                    st.info("ℹ️ **Recommended Action:** No immediate risk anomalies. Continue standard automated monitoring.")
+                    st.info("ℹ ... Continuing Standard Automated Monitoring.")
                     
         except Exception as eval_err:
             st.error(f"Inference processing failed. Ensure your feature data schema matches the model criteria. Error: {eval_err}")
