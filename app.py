@@ -2,6 +2,7 @@ import sys
 import types
 import os
 import urllib.request
+import traceback
 import pandas as pd
 import numpy as np
 import joblib
@@ -51,10 +52,10 @@ def load_model_pipeline():
         
     if not os.path.exists(model_path):
         MODEL_URL = "https://github.com"
-        with st.spinner("Downloading valid model binary from secure GitHub release storage..."):
+        with st.spinner("Downloading model binary from secure GitHub release storage..."):
             try:
                 urllib.request.urlretrieve(MODEL_URL, model_path)
-                st.success("Valid model file downloaded successfully!")
+                st.success("Model file downloaded successfully!")
             except Exception as download_err:
                 st.error(f"Failed to fetch model from release assets: {download_err}")
                 return None
@@ -64,6 +65,8 @@ def load_model_pipeline():
         return payload
     except Exception as e:
         st.error(f"Error reading model file: {e}")
+        st.error("Detailed System Traceback:")
+        st.code(traceback.format_exc(), language="python")
         return None
 
 payload = load_model_pipeline()
@@ -158,15 +161,15 @@ if payload:
             for step_name, step_obj in pipeline.steps:
                 if hasattr(step_obj, 'transformers'):
                     for trans in step_obj.transformers:
-                        transformer_instance = trans[1]
+                        transformer_instance = trans
                         if hasattr(transformer_instance, 'steps'):
                             for sub_step_name, sub_step_obj in transformer_instance.steps:
                                 if not hasattr(sub_step_obj, '_fill_dtype'):
                                     sub_step_obj._fill_dtype = object
                         if hasattr(transformer_instance, 'transformers_'):
                             for sub_t in transformer_instance.transformers_:
-                                if len(sub_t) > 1 and not hasattr(sub_t[1], '_fill_dtype'):
-                                    sub_t[1]._fill_dtype = object
+                                if len(sub_t) > 1 and not hasattr(sub_t, '_fill_dtype'):
+                                    sub_t._fill_dtype = object
 
             prob_array = pipeline.predict_proba(one_row)
             probability = float(prob_array[0, 1])
