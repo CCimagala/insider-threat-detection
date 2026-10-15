@@ -1,6 +1,7 @@
 import sys
 import types
 
+# Ensure backwards-compatibility hooks for older scikit-learn model payloads
 try:
     import sklearn.compose._column_transformer as _ct
     if not hasattr(_ct, '_RemainderColsList'):
@@ -41,14 +42,24 @@ st.write("Input raw user activity metrics below to run the Random Forest model c
 
 @st.cache_resource
 def load_model_pipeline():
-    model_dir = "model"
+    # Fix 1: Force dynamic absolute platform paths relative to app runtime root
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    model_dir = os.path.join(BASE_DIR, "model")
     model_path = os.path.join(model_dir, "random_forest_insider_threat_model_compressed.joblib")
     
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
         
     if not os.path.exists(model_path):
+        # Fix 2: Replace placeholder with a valid direct download asset URL if hosting externally.
+        # Alternatively, ensure the model file is simply pushed to your repo inside a folder named 'model/'
         MODEL_URL = "https://github.com"
+        
+        if "your-username" in MODEL_URL or MODEL_URL == "https://github.com":
+            st.error("⚠️ **Model Asset Missing:** The binary model file was not found locally in your `model/` folder, and no valid fallback download URL is configured.")
+            st.info("💡 **Solution:** Manually upload/push `random_forest_insider_threat_model_compressed.joblib` into the `model/` directory of your repository.")
+            return None
+            
         with st.spinner("Downloading model binary from secure GitHub release storage... Please wait..."):
             try:
                 urllib.request.urlretrieve(MODEL_URL, model_path)
@@ -62,6 +73,7 @@ def load_model_pipeline():
         return payload
     except Exception as e:
         st.error(f"Error reading model file: {e}")
+        st.info("💡 **Tip:** If this error persists, a corrupted HTML or text file might be saved at your path. Clear your application's deployment cache or delete the local `model/` folder to trigger a clean workspace sync.")
         return None
 
 payload = load_model_pipeline()
