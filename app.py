@@ -11,8 +11,7 @@ import streamlit as st
 try:
     import sklearn.compose._column_transformer as _ct
     if not hasattr(_ct, '_RemainderColsList'):
-        class _RemainderColsList(list):
-            pass
+        class _RemainderColsList(list): pass
         _ct._RemainderColsList = _RemainderColsList
 except ImportError:
     pass
@@ -20,8 +19,7 @@ except ImportError:
 if 'sklearn.compose._column_transformer' in sys.modules:
     mod = sys.modules['sklearn.compose._column_transformer']
     if not hasattr(mod, '_RemainderColsList'):
-        class _RemainderColsList(list):
-            pass
+        class _RemainderColsList(list): pass
         setattr(mod, '_RemainderColsList', _RemainderColsList)
 
 from sklearn.impute import SimpleImputer
@@ -29,7 +27,6 @@ if not hasattr(SimpleImputer, '_fill_dtype'):
     SimpleImputer._fill_dtype = object
 # --------------------------------------------------------
 
-# Streamlit App Configurations
 st.set_page_config(
     page_title="Insider Threat Detection System",
     page_icon="🛡️",
@@ -38,22 +35,27 @@ st.set_page_config(
 
 st.title("🛡️ Insider Threat Detection Dashboard")
 st.markdown("---")
-st.markdown("### Interactive Threat Evaluation Prototype")
-st.write("Input raw user activity metrics below to run the Random Forest model classification pipeline.")
 
 @st.cache_resource
 def load_model_pipeline():
-    # Saving directly to the application root folder ensures safe file handling across containers
-    model_path = "random_forest_insider_threat_model_compressed.joblib"
+    # Changing the filename guarantees that Streamlit won't reload a corrupted file from previous runs
+    model_path = "downloaded_rf_pipeline_v1.joblib"
     
     if not os.path.exists(model_path):
-        # ⚠️ CRITICAL: Replace this string with the actual link you copied from your GitHub Releases page!
+        # ⚠️ GETTING THE CORRECT LINK IS ABSOLUTELY VITAL:
+        # Go to your repo -> Click 'Model Binary Artifact' under Releases on the right side.
+        # Right-click your actual model file name (ending in .joblib/.pkl) and click "Copy link address"
         MODEL_URL = "https://github.com"
         
-        with st.spinner("Downloading 31MB model binary from secure GitHub release storage... Please wait..."):
+        with st.spinner("Downloading 31MB machine learning model artifact from GitHub Releases..."):
             try:
+                # Set user-agent headers so GitHub doesn't block the automated request with an HTML response
+                opener = urllib.request.build_opener()
+                opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
+                urllib.request.install_opener(opener)
+                
                 urllib.request.urlretrieve(MODEL_URL, model_path)
-                st.success("Model downloaded successfully!")
+                st.success("Model binary downloaded and cached locally!")
             except Exception as download_err:
                 st.error(f"Failed to fetch model from release assets: {download_err}")
                 return None
@@ -63,49 +65,29 @@ def load_model_pipeline():
         return payload
     except Exception as e:
         st.error(f"Error reading model file: {e}")
-        st.info("💡 **Troubleshooting Tip:** If your app previously saved a broken or incomplete file, reboot your app container via the Streamlit dashboard to force a clean re-download.")
+        st.info("If this keeps failing, your file in the GitHub Releases storage itself might be corrupted or in an incompatible format.")
         return None
 
-# Load the verified pipeline payload
 payload = load_model_pipeline()
 
 def add_engineered_features(frame):
     out = frame.copy()
-
     if {"num_printed_pages_off_hours", "total_printed_pages"}.issubset(out.columns):
-        out["off_hours_print_ratio"] = (
-            out["num_printed_pages_off_hours"] / (out["total_printed_pages"] + 1)
-        )
-
+        out["off_hours_print_ratio"] = out["num_printed_pages_off_hours"] / (out["total_printed_pages"] + 1)
     if {"total_files_burned", "num_entries"}.issubset(out.columns):
-        out["files_burned_per_entry"] = (
-            out["total_files_burned"] / (out["num_entries"] + 1)
-        )
+        out["files_burned_per_entry"] = out["total_files_burned"] / (out["num_entries"] + 1)
 
-    available_risk_flags = [
-        c for c in ["late_exit_flag", "entry_during_weekend", "is_abroad", "burned_from_other"]
-        if c in out.columns
-    ]
-
+    available_risk_flags = [c for c in ["late_exit_flag", "entry_during_weekend", "is_abroad", "burned_from_other"] if c in out.columns]
     if available_risk_flags:
-        out["unusual_behavior_count"] = (
-            out[available_risk_flags].fillna(0).sum(axis=1)
-        )
-
+        out["unusual_behavior_count"] = out[available_risk_flags].fillna(0).sum(axis=1)
     if "total_files_burned" in out.columns:
-        out["any_file_burn_activity"] = (
-            out["total_files_burned"].fillna(0) > 0
-        ).astype(int)
-
+        out["any_file_burn_activity"] = (out["total_files_burned"].fillna(0) > 0).astype(int)
     return out
 
 def get_risk_band(probability):
-    if probability < 0.25:
-        return "🟢 Low"
-    elif probability < 0.50:
-        return "🟡 Moderate"
-    elif probability < 0.75:
-        return "🟠 High"
+    if probability < 0.25: return "🟢 Low"
+    elif probability < 0.50: return "🟡 Moderate"
+    elif probability < 0.75: return "🟠 High"
     return "🔴 Very High"
 
 if payload:
@@ -113,7 +95,6 @@ if payload:
     feature_cols = payload["model_feature_columns"]
     
     st.subheader("📝 Activity Log Input Parameters")
-    
     col1, col2 = st.columns(2)
     
     with col1:
@@ -128,11 +109,7 @@ if payload:
         entry_during_weekend = st.selectbox("Weekend Access Entry?", ["No", "Yes"])
         is_abroad = st.selectbox("Remote Access from Abroad?", ["No", "Yes"])
         burned_from_other = st.selectbox("Burned Files From Other Profiles?", ["No", "Yes"])
-        
-        employee_department = st.selectbox(
-            "Employee Department", 
-            ["Engineering", "IT", "Sales", "Human Resources", "Finance", "Legal"]
-        )
+        employee_department = st.selectbox("Employee Department", ["Engineering", "IT", "Sales", "Human Resources", "Finance", "Legal"])
 
     flag_mapping = {"No": 0, "Yes": 1}
     st.markdown("---")
@@ -156,28 +133,12 @@ if payload:
         one_row = one_row.reindex(columns=feature_cols)
         
         try:
-            # Force inject internal parameter fallback properties into the pipeline steps dynamically
-            for step_name, step_obj in pipeline.steps:
-                if hasattr(step_obj, 'transformers'):
-                    for trans in step_obj.transformers:
-                        transformer_instance = trans[1]
-                        if hasattr(transformer_instance, 'steps'):
-                            for sub_step in transformer_instance.steps:
-                                if sub_step[0] == 'imputer' and not hasattr(sub_step[1], '_fill_dtype'):
-                                    sub_step[1]._fill_dtype = object
-                                if hasattr(sub_step[1], 'transformers_'):
-                                    for sub_t in sub_step[1].transformers_:
-                                        if not hasattr(sub_t[1], '_fill_dtype'):
-                                            sub_t[1]._fill_dtype = object
-
-            # Run inference calculation
             prob_array = pipeline.predict_proba(one_row)
             probability = float(prob_array[0, 1])
             predicted_class = int(probability >= 0.50)
             risk_band_string = get_risk_band(probability)
             
             st.subheader("📊 Model Inference Evaluation")
-            
             res_col1, res_col2 = st.columns(2)
             with res_col1:
                 st.metric(label="Calculated Threat Probability", value=f"{probability:.2%}")
@@ -186,10 +147,7 @@ if payload:
             with res_col2:
                 if predicted_class == 1:
                     st.error("🚨 **POTENTIAL INSIDER THREAT DETECTED**")
-                    st.warning("⚠️ **Recommended Action:** Escalate activity record for formal security analyst investigation.")
                 else:
                     st.success("✅ **NORMAL ACTIVITY PROFILE**")
-                    st.info("ℹ Continuing Standard Automated Monitoring.")
-                    
         except Exception as eval_err:
-            st.error(f"Inference processing failed. Ensure your feature data schema matches the model criteria. Error: {eval_err}")
+            st.error(f"Inference processing failed: {eval_err}")
