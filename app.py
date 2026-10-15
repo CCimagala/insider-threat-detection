@@ -1,6 +1,13 @@
 import sys
 import types
+import os
+import urllib.request
+import pandas as pd
+import numpy as np
+import joblib
+import streamlit as st
 
+# --- BACKWARD COMPATIBILITY PATCH FOR SKLEARN PIPELINES ---
 try:
     import sklearn.compose._column_transformer as _ct
     if not hasattr(_ct, '_RemainderColsList'):
@@ -20,14 +27,9 @@ if 'sklearn.compose._column_transformer' in sys.modules:
 from sklearn.impute import SimpleImputer
 if not hasattr(SimpleImputer, '_fill_dtype'):
     SimpleImputer._fill_dtype = object
+# --------------------------------------------------------
 
-import streamlit as st
-import pandas as pd
-import numpy as np
-import joblib
-import os
-import urllib.request
-
+# Streamlit App Configurations
 st.set_page_config(
     page_title="Insider Threat Detection System",
     page_icon="🛡️",
@@ -41,15 +43,14 @@ st.write("Input raw user activity metrics below to run the Random Forest model c
 
 @st.cache_resource
 def load_model_pipeline():
-    model_dir = "model"
-    model_path = os.path.join(model_dir, "random_forest_insider_threat_model_compressed.joblib")
+    # Saving directly to the application root folder ensures safe file handling across containers
+    model_path = "random_forest_insider_threat_model_compressed.joblib"
     
-    if not os.path.exists(model_dir):
-        os.makedirs(model_dir)
-        
     if not os.path.exists(model_path):
+        # ⚠️ CRITICAL: Replace this string with the actual link you copied from your GitHub Releases page!
         MODEL_URL = "https://github.com"
-        with st.spinner("Downloading model binary from secure GitHub release storage... Please wait..."):
+        
+        with st.spinner("Downloading 31MB model binary from secure GitHub release storage... Please wait..."):
             try:
                 urllib.request.urlretrieve(MODEL_URL, model_path)
                 st.success("Model downloaded successfully!")
@@ -62,8 +63,10 @@ def load_model_pipeline():
         return payload
     except Exception as e:
         st.error(f"Error reading model file: {e}")
+        st.info("💡 **Troubleshooting Tip:** If your app previously saved a broken or incomplete file, reboot your app container via the Streamlit dashboard to force a clean re-download.")
         return None
 
+# Load the verified pipeline payload
 payload = load_model_pipeline()
 
 def add_engineered_features(frame):
@@ -167,7 +170,7 @@ if payload:
                                         if not hasattr(sub_t[1], '_fill_dtype'):
                                             sub_t[1]._fill_dtype = object
 
-            # Run inference calculation matching shape indices
+            # Run inference calculation
             prob_array = pipeline.predict_proba(one_row)
             probability = float(prob_array[0, 1])
             predicted_class = int(probability >= 0.50)
@@ -186,7 +189,7 @@ if payload:
                     st.warning("⚠️ **Recommended Action:** Escalate activity record for formal security analyst investigation.")
                 else:
                     st.success("✅ **NORMAL ACTIVITY PROFILE**")
-                    st.info("ℹ ... Continuing Standard Automated Monitoring.")
+                    st.info("ℹ Continuing Standard Automated Monitoring.")
                     
         except Exception as eval_err:
             st.error(f"Inference processing failed. Ensure your feature data schema matches the model criteria. Error: {eval_err}")
