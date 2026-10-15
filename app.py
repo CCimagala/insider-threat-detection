@@ -27,7 +27,6 @@ import pandas as pd
 import numpy as np
 import joblib
 import os
-import urllib.request
 
 st.set_page_config(
     page_title="Insider Threat Detection System",
@@ -42,38 +41,22 @@ st.write("Input raw user activity metrics below to run the Random Forest model c
 
 @st.cache_resource
 def load_model_pipeline():
-    # Fix 1: Force dynamic absolute platform paths relative to app runtime root
+    # Resolve the exact absolute path to your local 'model' folder visible in your directory layout
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    model_dir = os.path.join(BASE_DIR, "model")
-    model_path = os.path.join(model_dir, "random_forest_insider_threat_model_compressed.joblib")
+    model_path = os.path.join(BASE_DIR, "model", "random_forest_insider_threat_model_compressed.joblib")
     
-    if not os.path.exists(model_dir):
-        os.makedirs(model_dir)
-        
+    # Check if the file is locally available
     if not os.path.exists(model_path):
-        # Fix 2: Replace placeholder with a valid direct download asset URL if hosting externally.
-        # Alternatively, ensure the model file is simply pushed to your repo inside a folder named 'model/'
-        MODEL_URL = "https://github.com"
-        
-        if "your-username" in MODEL_URL or MODEL_URL == "https://github.com":
-            st.error("⚠️ **Model Asset Missing:** The binary model file was not found locally in your `model/` folder, and no valid fallback download URL is configured.")
-            st.info("💡 **Solution:** Manually upload/push `random_forest_insider_threat_model_compressed.joblib` into the `model/` directory of your repository.")
-            return None
-            
-        with st.spinner("Downloading model binary from secure GitHub release storage... Please wait..."):
-            try:
-                urllib.request.urlretrieve(MODEL_URL, model_path)
-                st.success("Model downloaded successfully!")
-            except Exception as download_err:
-                st.error(f"Failed to fetch model from release assets: {download_err}")
-                return None
+        st.error(f"⚠️ **Model File Missing:** Could not locate your model file at the expected path: `{model_path}`")
+        st.info("💡 **Solution:** Ensure that your file inside the `model` folder is named precisely: `random_forest_insider_threat_model_compressed.joblib`")
+        return None
                 
     try:
         payload = joblib.load(model_path)
         return payload
     except Exception as e:
         st.error(f"Error reading model file: {e}")
-        st.info("💡 **Tip:** If this error persists, a corrupted HTML or text file might be saved at your path. Clear your application's deployment cache or delete the local `model/` folder to trigger a clean workspace sync.")
+        st.info("💡 **Tip:** If you are deploying to a server (like Streamlit Cloud) and see this error, your server might have cached a corrupted file from an earlier build. Please clear the application's deployment cache and rebuild.")
         return None
 
 payload = load_model_pipeline()
