@@ -47,11 +47,25 @@ def load_model_pipeline():
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
         
+    if os.path.exists(model_path) and os.path.getsize(model_path) < 50000:
+        os.remove(model_path)
+        
     if not os.path.exists(model_path):
         MODEL_URL = "https://github.com"
         with st.spinner("Downloading model binary from secure GitHub release storage..."):
             try:
                 urllib.request.urlretrieve(MODEL_URL, model_path)
+                
+                if os.path.exists(model_path) and os.path.getsize(model_path) < 50000:
+                    with open(model_path, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read(200)
+                    if "<!DOCTYPE html>" in content or "<html" in content:
+                        os.remove(model_path)
+                        st.error("🛑 **Access Blocked by GitHub Authentication**")
+                        st.warning("Your GitHub repository is currently set to **Private**. Because it is private, GitHub is blocking the download script and sending a login page instead of the actual model file.")
+                        st.info("💡 **How to fix this instantly:**\n1. Go to your repository on **GitHub.com**.\n2. Click **Settings** (the gear icon at the top).\n3. Scroll all the way down to the **Danger Zone**.\n4. Click **Change visibility** ➡️ select **Make public**.\n\nOnce the repo is Public, click **Reboot App** in Streamlit and it will load perfectly!")
+                        return None
+                        
                 st.success("Model file downloaded successfully!")
             except Exception as download_err:
                 st.error(f"Failed to fetch model from release assets: {download_err}")
