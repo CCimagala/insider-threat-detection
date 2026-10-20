@@ -34,7 +34,7 @@ st.set_page_config(
     layout="centered"
 )
 
-st.title("🛡️ Insider Threat Detection Dashboard")
+st.title("Insider Threat Detection Dashboard")
 st.markdown("---")
 st.markdown("### Interactive Threat Evaluation Prototype")
 st.write("Input raw user activity metrics below to run the Random Forest model classification pipeline.")
